@@ -4,8 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, Eye, Compass, Target, Lightbulb, Settings } from 'lucide-react';
 import { GeminiIntegration, GeminiService } from './GeminiIntegration';
+import { AdminInterface, ApiKeys } from './AdminInterface';
+import { AIApiService } from './AIApiService';
 
 interface Analysis {
   phase: number;
@@ -59,20 +62,29 @@ export default function Weitblickgenerator() {
   const [initialIdea, setInitialIdea] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [apiKeys, setApiKeys] = useState<Partial<ApiKeys>>(() => {
+    return {
+      gemini: localStorage.getItem('gemini_api_key') || '',
+      openai: localStorage.getItem('openai_api_key') || '',
+      anthropic: localStorage.getItem('anthropic_api_key') || '',
+      deepseek: localStorage.getItem('deepseek_api_key') || ''
+    };
+  });
   const [geminiService, setGeminiService] = useState<GeminiService | null>(null);
 
   useEffect(() => {
     const savedApiKey = localStorage.getItem('gemini_api_key');
     if (savedApiKey) {
-      setGeminiApiKey(savedApiKey);
+      setApiKeys(prev => ({ ...prev, gemini: savedApiKey }));
       setGeminiService(new GeminiService(savedApiKey));
     }
   }, []);
 
-  const handleApiKeySet = (apiKey: string) => {
-    setGeminiApiKey(apiKey);
-    setGeminiService(new GeminiService(apiKey));
+  const handleApiKeysUpdate = (newApiKeys: Partial<ApiKeys>) => {
+    setApiKeys(newApiKeys);
+    if (newApiKeys.gemini) {
+      setGeminiService(new GeminiService(newApiKeys.gemini));
+    }
     setShowSettings(false);
   };
 
@@ -136,11 +148,18 @@ export default function Weitblickgenerator() {
   };
 
   const analyzeFromKantPerspective = async (text: string, level: string, lang: string): Promise<string> => {
-    if (geminiService) {
+    // Try multiple AI APIs if available
+    if (Object.values(apiKeys).some(key => key)) {
       try {
-        return await geminiService.analyzeText(text, 'Kant', level, lang);
+        const aiService = new AIApiService(apiKeys as ApiKeys);
+        const results = await aiService.analyzeWithMultipleAIs(text, 'Kant', level, lang);
+        
+        const availableResults = Object.entries(results).filter(([_, result]) => result && !result.includes('fehlgeschlagen'));
+        if (availableResults.length > 0) {
+          return availableResults[0][1];
+        }
       } catch (error) {
-        console.error('Gemini analysis failed, using fallback:', error);
+        console.error('AI API error:', error);
       }
     }
     
@@ -413,7 +432,7 @@ export default function Weitblickgenerator() {
             <div className="flex items-center gap-2">
               <Compass className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-bold">Weitblickgenerator</h1>
-              {geminiApiKey && (
+              {apiKeys.gemini && (
                 <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
                   Gemini Pro
                 </Badge>
@@ -436,10 +455,26 @@ export default function Weitblickgenerator() {
 
         {showSettings && (
           <div className="mb-6">
-            <GeminiIntegration 
-              onApiKeySet={handleApiKeySet}
-              currentApiKey={geminiApiKey}
-            />
+            <Tabs defaultValue="admin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="admin">Administration</TabsTrigger>
+                <TabsTrigger value="integration">Gemini Legacy</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="admin">
+                <AdminInterface 
+                  onApiKeysUpdate={handleApiKeysUpdate}
+                  currentApiKeys={apiKeys}
+                />
+              </TabsContent>
+              
+              <TabsContent value="integration">
+                <GeminiIntegration 
+                  onApiKeySet={(key) => handleApiKeysUpdate({ ...apiKeys, gemini: key })}
+                  currentApiKey={apiKeys.gemini}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 
