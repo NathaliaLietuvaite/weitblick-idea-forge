@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, Eye, Compass, Target, Lightbulb } from 'lucide-react';
+import { AlertTriangle, Eye, Compass, Target, Lightbulb, Settings } from 'lucide-react';
+import { GeminiIntegration, GeminiService } from './GeminiIntegration';
 
 interface Analysis {
   phase: number;
@@ -57,41 +58,242 @@ export default function Weitblickgenerator() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [initialIdea, setInitialIdea] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiService, setGeminiService] = useState<GeminiService | null>(null);
 
-  const analyzeWithPerspectives = useCallback((answer: string, phase: number) => {
-    // Simulierte Analyse durch die 5 Instanzen
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem('gemini_api_key');
+    if (savedApiKey) {
+      setGeminiApiKey(savedApiKey);
+      setGeminiService(new GeminiService(savedApiKey));
+    }
+  }, []);
+
+  const handleApiKeySet = (apiKey: string) => {
+    setGeminiApiKey(apiKey);
+    setGeminiService(new GeminiService(apiKey));
+    setShowSettings(false);
+  };
+
+  const analyzeWithPerspectives = useCallback(async (answer: string, phase: number) => {
     const perspectives = [];
     const risks = [];
     const opportunities = [];
 
-    switch (phase) {
-      case 0: // Kernhypothese
-        perspectives.push(`Kant: Prüfung der Erkenntnisbedingungen dieser Hypothese`);
-        perspectives.push(`Heidegger: Existenzielle Verwurzelung im Dasein`);
-        perspectives.push(`Hegel: Dialektisches Potenzial für Synthese`);
-        perspectives.push(`Nagarjuna: Dekonstruktion fixierter Annahmen`);
-        perspectives.push(`Wissenschaft: Empirische Überprüfbarkeit`);
-        break;
-      case 1: // Problemlösung
-        opportunities.push("Neue Forschungsfelder werden möglich");
-        opportunities.push("Bestehende Grenzen werden überwunden");
-        risks.push("Mögliche unvorhergesehene Nebenwirkungen");
-        break;
-      case 2: // Kaskade
-        opportunities.push("Gesellschaftliche Transformation");
-        opportunities.push("Wissenschaftliche Revolution");
-        opportunities.push("Neue Technologien");
-        risks.push("Systemische Instabilität");
-        break;
-      case 3: // Resilienz
-        risks.push("Ethische Dilemmata");
-        risks.push("Missbrauchspotenzial");
-        risks.push("Unerwünschte Konsequenzen");
-        break;
+    // Detect language and sophistication level
+    const sophisticationLevel = detectSophisticationLevel(answer);
+    const language = detectLanguage(answer);
+
+    try {
+      switch (phase) {
+        case 0: // Kernhypothese
+          perspectives.push(await analyzeFromKantPerspective(answer, sophisticationLevel, language));
+          perspectives.push(await analyzeFromHeideggerPerspective(answer, sophisticationLevel, language));
+          perspectives.push(await analyzeFromHegelPerspective(answer, sophisticationLevel, language));
+          perspectives.push(await analyzeFromNagarjunaPerspective(answer, sophisticationLevel, language));
+          perspectives.push(await analyzeFromSciencePerspective(answer, sophisticationLevel, language));
+          break;
+        case 1: // Problemlösung
+          const problemAnalysis = await analyzeProblemSolution(answer, sophisticationLevel, language);
+          opportunities.push(...problemAnalysis.opportunities);
+          risks.push(...problemAnalysis.risks);
+          break;
+        case 2: // Kaskade
+          const cascadeAnalysis = await analyzeCascadeEffects(answer, sophisticationLevel, language);
+          opportunities.push(...cascadeAnalysis.opportunities);
+          risks.push(...cascadeAnalysis.risks);
+          break;
+        case 3: // Resilienz
+          const resilienceAnalysis = await analyzeResilience(answer, sophisticationLevel, language);
+          risks.push(...resilienceAnalysis.risks);
+          opportunities.push(...resilienceAnalysis.safeguards);
+          break;
+      }
+    } catch (error) {
+      console.error('Analysis error:', error);
+      // Fallback to basic analysis
+      return getBasicAnalysis(phase);
     }
 
     return { perspectives, risks, opportunities };
   }, []);
+
+  const detectSophisticationLevel = (text: string): 'basic' | 'intermediate' | 'advanced' => {
+    const academicTerms = ['epistemologie', 'ontologie', 'paradigma', 'empirisch', 'relational', 'dialektisch', 'axiom'];
+    const complexSentences = text.split('.').filter(s => s.split(' ').length > 15).length;
+    const academicTermCount = academicTerms.filter(term => text.toLowerCase().includes(term)).length;
+    
+    if (academicTermCount >= 3 || complexSentences >= 2) return 'advanced';
+    if (academicTermCount >= 1 || complexSentences >= 1) return 'intermediate';
+    return 'basic';
+  };
+
+  const detectLanguage = (text: string): 'de' | 'en' => {
+    const germanWords = ['und', 'der', 'die', 'das', 'ist', 'aber', 'wenn', 'durch'];
+    const germanCount = germanWords.filter(word => text.toLowerCase().includes(word)).length;
+    return germanCount >= 2 ? 'de' : 'en';
+  };
+
+  const analyzeFromKantPerspective = async (text: string, level: string, lang: string): Promise<string> => {
+    if (geminiService) {
+      try {
+        return await geminiService.analyzeText(text, 'Kant', level, lang);
+      } catch (error) {
+        console.error('Gemini analysis failed, using fallback:', error);
+      }
+    }
+    
+    if (lang === 'de') {
+      const analysis = `Kant: Diese Hypothese berührt die Erkenntnisbedingungen unserer Vernunft. ${
+        level === 'advanced' 
+          ? 'Sie fordert die transzendentalen Kategorien heraus und erweitert möglicherweise die Grenzen möglicher Erfahrung. Die apriorischen Anschauungsformen von Raum und Zeit werden hier neu kontextualisiert.'
+          : level === 'intermediate'
+          ? 'Sie stellt die Frage, wie wir überhaupt zu sicherem Wissen gelangen können und welche Rolle unser Verstand dabei spielt.'
+          : 'Sie zeigt uns neue Wege, wie wir die Welt verstehen können und was wir wirklich wissen können.'
+      }`;
+      return analysis;
+    }
+    return `Kant: This hypothesis challenges the conditions of knowledge itself...`;
+  };
+
+  const analyzeFromHeideggerPerspective = async (text: string, level: string, lang: string): Promise<string> => {
+    if (geminiService) {
+      try {
+        return await geminiService.analyzeText(text, 'Heidegger', level, lang);
+      } catch (error) {
+        console.error('Gemini analysis failed, using fallback:', error);
+      }
+    }
+    
+    if (lang === 'de') {
+      const analysis = `Heidegger: ${
+        level === 'advanced'
+          ? 'Das Dasein wird hier in seiner fundamentalen Geworfenheit und seinem Sein-zur-Welt neu verstanden. Die Idee enthüllt eine neue Dimension des In-der-Welt-seins und der existenzialen Verfasstheit.'
+          : level === 'intermediate'
+          ? 'Diese Idee verändert unser Verständnis davon, was es bedeutet, Mensch zu sein und in der Welt zu leben.'
+          : 'Die Idee zeigt uns eine neue Art, wie Menschen miteinander und mit der Welt verbunden sind.'
+      }`;
+      return analysis;
+    }
+    return `Heidegger: This idea reveals new dimensions of Being-in-the-world...`;
+  };
+
+  const analyzeFromHegelPerspective = async (text: string, level: string, lang: string): Promise<string> => {
+    if (geminiService) {
+      try {
+        return await geminiService.analyzeText(text, 'Hegel', level, lang);
+      } catch (error) {
+        console.error('Gemini analysis failed, using fallback:', error);
+      }
+    }
+    
+    if (lang === 'de') {
+      const analysis = `Hegel: ${
+        level === 'advanced'
+          ? 'Die dialektische Bewegung von These-Antithese-Synthese findet hier eine neue Wendung. Der Weltgeist manifestiert sich in dieser Idee als Aufhebung bestehender Widersprüche auf einer höheren Ebene der Wahrheit.'
+          : level === 'intermediate'
+          ? 'Diese Idee löst alte Gegensätze auf und schafft eine neue, höhere Einheit des Verstehens.'
+          : 'Die Idee bringt verschiedene Gegensätze zusammen und schafft etwas völlig Neues daraus.'
+      }`;
+      return analysis;
+    }
+    return `Hegel: This idea represents a dialectical synthesis...`;
+  };
+
+  const analyzeFromNagarjunaPerspective = async (text: string, level: string, lang: string): Promise<string> => {
+    if (geminiService) {
+      try {
+        return await geminiService.analyzeText(text, 'Nagarjuna', level, lang);
+      } catch (error) {
+        console.error('Gemini analysis failed, using fallback:', error);
+      }
+    }
+    
+    if (lang === 'de') {
+      const analysis = `Nagarjuna: ${
+        level === 'advanced'
+          ? 'Die Idee verkörpert die Sunyata - die Leerheit von eigenständiger Existenz. Sie dekonstruiert fixierte Begriffe und zeigt die abhängige Entstehung (Pratityasamutpada) aller Phänomene.'
+          : level === 'intermediate'
+          ? 'Diese Idee befreit uns von starren Denkmustern und zeigt, dass alles miteinander verbunden und voneinander abhängig ist.'
+          : 'Die Idee hilft uns zu verstehen, dass nichts für sich allein existiert - alles hängt mit allem zusammen.'
+      }`;
+      return analysis;
+    }
+    return `Nagarjuna: This idea embodies the emptiness of independent existence...`;
+  };
+
+  const analyzeFromSciencePerspective = async (text: string, level: string, lang: string): Promise<string> => {
+    if (geminiService) {
+      try {
+        return await geminiService.analyzeText(text, 'Wissenschaft', level, lang);
+      } catch (error) {
+        console.error('Gemini analysis failed, using fallback:', error);
+      }
+    }
+    
+    if (lang === 'de') {
+      const analysis = `Wissenschaft: ${
+        level === 'advanced'
+          ? 'Die Hypothese ist prinzipiell empirisch überprüfbar und könnte neue Forschungsmethodologien erfordern. Sie deutet auf messbare Korrelationen und quantifizierbare Effekte hin.'
+          : level === 'intermediate'
+          ? 'Die Idee kann durch Experimente und Messungen getestet werden und eröffnet neue Forschungsmöglichkeiten.'
+          : 'Diese Idee können Wissenschaftler durch Versuche prüfen und dabei neue Entdeckungen machen.'
+      }`;
+      return analysis;
+    }
+    return `Science: This hypothesis offers empirically testable predictions...`;
+  };
+
+  const analyzeProblemSolution = async (text: string, level: string, lang: string) => {
+    const opportunities = lang === 'de' 
+      ? ['Neue Forschungsfelder entstehen', 'Bestehende Grenzen werden überwunden', 'Innovative Technologien werden möglich']
+      : ['New research fields emerge', 'Existing limitations are overcome', 'Innovative technologies become possible'];
+    
+    const risks = lang === 'de'
+      ? ['Unvorhergesehene Nebeneffekte', 'Komplexe Systeminteraktionen']
+      : ['Unforeseen side effects', 'Complex system interactions'];
+    
+    return { opportunities, risks };
+  };
+
+  const analyzeCascadeEffects = async (text: string, level: string, lang: string) => {
+    const opportunities = lang === 'de'
+      ? ['Gesellschaftliche Transformation', 'Wissenschaftliche Revolution', 'Neue Paradigmen', 'Globale Vernetzung']
+      : ['Societal transformation', 'Scientific revolution', 'New paradigms', 'Global connectivity'];
+    
+    const risks = lang === 'de'
+      ? ['Systemische Instabilität', 'Ungleichgewichte', 'Anpassungsschwierigkeiten']
+      : ['Systemic instability', 'Imbalances', 'Adaptation difficulties'];
+    
+    return { opportunities, risks };
+  };
+
+  const analyzeResilience = async (text: string, level: string, lang: string) => {
+    const risks = lang === 'de'
+      ? ['Ethische Dilemmata', 'Missbrauchspotenzial', 'Ungewollte Konsequenzen', 'Machtkonzentrationen']
+      : ['Ethical dilemmas', 'Abuse potential', 'Unintended consequences', 'Power concentrations'];
+    
+    const safeguards = lang === 'de'
+      ? ['Ethische Rahmenwerke', 'Transparenz-Mechanismen', 'Demokratische Kontrolle']
+      : ['Ethical frameworks', 'Transparency mechanisms', 'Democratic control'];
+    
+    return { risks, safeguards };
+  };
+
+  const getBasicAnalysis = (phase: number) => {
+    return {
+      perspectives: phase === 0 ? [
+        'Kant: Erkenntnistheoretische Betrachtung erforderlich',
+        'Heidegger: Existenzielle Dimension zu untersuchen',
+        'Hegel: Dialektisches Potenzial vorhanden',
+        'Nagarjuna: Dekonstruktive Analyse notwendig',
+        'Wissenschaft: Empirische Überprüfung möglich'
+      ] : [],
+      risks: ['Weitere Analyse erforderlich'],
+      opportunities: ['Potenzial erkennbar']
+    };
+  };
 
   const handleStartAnalysis = () => {
     if (!initialIdea.trim()) return;
@@ -107,7 +309,7 @@ export default function Weitblickgenerator() {
     // Simuliere Analyseprozess
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    const analysis = analyzeWithPerspectives(currentAnswer, currentPhase);
+    const analysis = await analyzeWithPerspectives(currentAnswer, currentPhase);
     
     const newAnalysis: Analysis = {
       phase: currentPhase,
@@ -211,16 +413,35 @@ export default function Weitblickgenerator() {
             <div className="flex items-center gap-2">
               <Compass className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-bold">Weitblickgenerator</h1>
+              {geminiApiKey && (
+                <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                  Gemini Pro
+                </Badge>
+              )}
             </div>
-            <Button variant="outline" onClick={resetGenerator}>
-              Neu starten
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)}>
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" onClick={resetGenerator}>
+                Neu starten
+              </Button>
+            </div>
           </div>
           <Progress value={progress} className="h-2" />
           <p className="text-sm text-muted-foreground mt-2">
             Phase {currentPhase + 1} von {PHASES.length} • {Math.round(progress)}% abgeschlossen
           </p>
         </div>
+
+        {showSettings && (
+          <div className="mb-6">
+            <GeminiIntegration 
+              onApiKeySet={handleApiKeySet}
+              currentApiKey={geminiApiKey}
+            />
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Hauptbereich - Aktuelle Phase */}
