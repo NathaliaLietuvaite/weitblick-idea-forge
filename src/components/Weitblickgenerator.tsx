@@ -189,30 +189,55 @@ export default function Weitblickgenerator() {
     
     const perspectiveTheses: Thesis[] = [];
     
-    for (const perspective of PERSPECTIVES) {
-      let analysis = '';
-      
-      // Generate sophisticated analysis for each perspective using AI if available
-      if (Object.values(apiKeys).some(key => key)) {
-        try {
-          const aiService = new AIApiService(apiKeys as ApiKeys);
-          const perspectivePrompt = language === 'de'
-            ? `Analysiere diese Idee aus der Perspektive von ${perspective.name}: "${idea}". Gib eine ${level === 'advanced' ? 'tiefgreifende philosophische' : 'verständliche'} Analyse in 2-3 Sätzen.`
-            : `Analyze this idea from ${perspective.name}'s perspective: "${idea}". Provide a ${level === 'advanced' ? 'profound philosophical' : 'understandable'} analysis in 2-3 sentences.`;
-            
-          const results = await aiService.analyzeWithMultipleAIs(perspectivePrompt, 'Perspective', level, language);
-          const availableResults = Object.entries(results).filter(([_, result]) => result && !result.includes('fehlgeschlagen'));
+    // Generate comprehensive discourse between all perspectives
+    if (Object.values(apiKeys).some(key => key)) {
+      try {
+        const aiService = new AIApiService(apiKeys as ApiKeys);
+        const discoursePrompt = language === 'de'
+          ? `Führe einen philosophischen Diskurs zwischen Kant, Heidegger, Hegel, Nagarjuna und der modernen Wissenschaft über diese Idee: "${idea}". 
+             Jede Perspektive soll auf die anderen eingehen und einen echten Dialog entwickeln, nicht nur isolierte Meinungen.
+             Format: KANT: [Position und Reaktion auf andere] | HEIDEGGER: [Position und Reaktion] | HEGEL: [Position und Reaktion] | NAGARJUNA: [Position und Reaktion] | WISSENSCHAFT: [Position und Reaktion]`
+          : `Conduct a philosophical discourse between Kant, Heidegger, Hegel, Nagarjuna, and modern Science about this idea: "${idea}".
+             Each perspective should respond to the others and develop a real dialogue, not just isolated opinions.
+             Format: KANT: [Position and reaction to others] | HEIDEGGER: [Position and reaction] | HEGEL: [Position and reaction] | NAGARJUNA: [Position and reaction] | SCIENCE: [Position and reaction]`;
+        
+        const results = await aiService.analyzeWithMultipleAIs(discoursePrompt, 'Discourse', level, language);
+        const availableResults = Object.entries(results).filter(([_, result]) => result && !result.includes('fehlgeschlagen'));
+        
+        if (availableResults.length > 0) {
+          const discourse = availableResults[0][1];
+          const parts = discourse.split('|').map(part => part.trim());
           
-          if (availableResults.length > 0) {
-            analysis = availableResults[0][1];
+          if (parts.length >= 5) {
+            PERSPECTIVES.forEach((perspective, index) => {
+              if (parts[index]) {
+                const content = parts[index].replace(new RegExp(`^${perspective.name.toUpperCase()}:`, 'i'), '').trim();
+                const perspectiveThesis: Thesis = {
+                  id: `perspective-${perspective.name.toLowerCase()}-${Date.now()}`,
+                  type: 'perspective',
+                  title: perspective.name,
+                  content: content || `Fallback analysis for ${perspective.name}`,
+                  perspectives: [],
+                  category: category.name,
+                  level: 0,
+                  perspectiveName: perspective.name,
+                  children: []
+                };
+                perspectiveTheses.push(perspectiveThesis);
+              }
+            });
           }
-        } catch (error) {
-          console.error('AI perspective analysis error:', error);
         }
+      } catch (error) {
+        console.error('AI discourse generation error:', error);
       }
-      
-      // Fallback analysis if AI fails
-      if (!analysis) {
+    }
+    
+    // Fallback if AI discourse failed
+    if (perspectiveTheses.length === 0) {
+      for (const perspective of PERSPECTIVES) {
+        let analysis = '';
+        
         if (language === 'de') {
           switch (perspective.name) {
             case 'Kant':
@@ -244,21 +269,21 @@ export default function Weitblickgenerator() {
         } else {
           analysis = `${perspective.name}: This idea reveals new dimensions of understanding and opens pathways for deeper exploration of reality.`;
         }
+        
+        const perspectiveThesis: Thesis = {
+          id: `perspective-${perspective.name.toLowerCase()}-${Date.now()}`,
+          type: 'perspective',
+          title: perspective.name,
+          content: analysis,
+          perspectives: [],
+          category: category.name,
+          level: 0,
+          perspectiveName: perspective.name,
+          children: []
+        };
+        
+        perspectiveTheses.push(perspectiveThesis);
       }
-      
-      const perspectiveThesis: Thesis = {
-        id: `perspective-${perspective.name.toLowerCase()}-${Date.now()}`,
-        type: 'perspective',
-        title: perspective.name,
-        content: analysis,
-        perspectives: [],
-        category: category.name,
-        level: 0,
-        perspectiveName: perspective.name,
-        children: []
-      };
-      
-      perspectiveTheses.push(perspectiveThesis);
     }
     
     return perspectiveTheses;
@@ -617,6 +642,46 @@ export default function Weitblickgenerator() {
                 </CardContent>
               </Card>
             )}
+
+            {/* API Administration - Collapsible at bottom */}
+            <div className="mt-8">
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-between mb-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      API Administration
+                    </div>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <Tabs defaultValue="admin" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="admin">Administration</TabsTrigger>
+                      <TabsTrigger value="integration">Gemini Legacy</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="admin">
+                      <AdminInterface 
+                        onApiKeysUpdate={handleApiKeysUpdate}
+                        currentApiKeys={apiKeys}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="integration">
+                      <GeminiIntegration 
+                        onApiKeySet={(key) => handleApiKeysUpdate({ ...apiKeys, gemini: key })}
+                        currentApiKey={apiKeys.gemini}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           </div>
 
           {/* Sidebar - Navigation */}
