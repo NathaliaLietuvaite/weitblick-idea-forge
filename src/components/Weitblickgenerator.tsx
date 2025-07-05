@@ -4,14 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Eye, Compass, Target, Lightbulb, Settings, ArrowLeft, ArrowRight, Brain } from 'lucide-react';
+import { AlertTriangle, Eye, Compass, Target, Lightbulb, Settings, ArrowLeft, ArrowRight, Brain, ChevronDown, ChevronUp } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { GeminiIntegration, GeminiService } from './GeminiIntegration';
 import { AdminInterface, ApiKeys } from './AdminInterface';
 import { AIApiService } from './AIApiService';
 
 interface Thesis {
   id: string;
-  type: 'thesis' | 'antithesis' | 'quintessence';
+  type: 'thesis' | 'antithesis' | 'quintessence' | 'perspective';
   title: string;
   content: string;
   perspectives: string[];
@@ -19,6 +20,7 @@ interface Thesis {
   level: number;
   parentId?: string;
   children: string[];
+  perspectiveName?: string; // For perspective-based theses
 }
 
 interface IdeaCategory {
@@ -154,9 +156,6 @@ export default function Weitblickgenerator() {
       }
     }
 
-    // Generate perspectives
-    perspectives = await generatePerspectivesForIdea(idea, level, language);
-
     const thesis: Thesis = {
       id: thesisId,
       type: 'thesis',
@@ -183,49 +182,86 @@ export default function Weitblickgenerator() {
     return { thesis, antithesis };
   };
 
-  const generatePerspectivesForIdea = async (idea: string, level: string, language: string): Promise<string[]> => {
-    const perspectives = [];
+  const generatePerspectiveTheses = async (idea: string): Promise<Thesis[]> => {
+    const category = categorizeIdea(idea);
+    const level = detectSophisticationLevel(idea);
+    const language = detectLanguage(idea);
     
-    // Generate perspective analysis for each of the 5 systems
+    const perspectiveTheses: Thesis[] = [];
+    
     for (const perspective of PERSPECTIVES) {
       let analysis = '';
       
-      if (language === 'de') {
-        switch (perspective.name) {
-          case 'Kant':
-            analysis = level === 'advanced' 
-              ? `${perspective.name}: Diese Idee berührt die transzendentalen Bedingungen der Erkenntnis und fordert unsere apriorischen Anschauungsformen heraus.`
-              : `${perspective.name}: Die Idee zeigt neue Wege der Erkenntnis und erweitert unser Verständnis der Welt.`;
-            break;
-          case 'Heidegger':
-            analysis = level === 'advanced'
-              ? `${perspective.name}: Das Dasein wird hier in seiner existenzialen Verfasstheit neu verstanden - ein authentisches In-der-Welt-sein.`
-              : `${perspective.name}: Die Idee verändert unser Verständnis davon, was es bedeutet, Mensch zu sein.`;
-            break;
-          case 'Hegel':
-            analysis = level === 'advanced'
-              ? `${perspective.name}: Eine dialektische Bewegung zeigt sich - These und Antithese finden zu einer höheren Synthese.`
-              : `${perspective.name}: Die Idee bringt Gegensätze zusammen und schafft etwas völlig Neues.`;
-            break;
-          case 'Nagarjuna':
-            analysis = level === 'advanced'
-              ? `${perspective.name}: Die Sunyata wird sichtbar - die Leerheit fester Konzepte und die abhängige Entstehung aller Phänomene.`
-              : `${perspective.name}: Die Idee zeigt uns, dass alles miteinander verbunden ist.`;
-            break;
-          case 'Wissenschaft':
-            analysis = level === 'advanced'
-              ? `${perspective.name}: Die Hypothese ist empirisch überprüfbar und eröffnet neue Forschungsmethodologien.`
-              : `${perspective.name}: Die Idee kann durch Experimente getestet werden.`;
-            break;
+      // Generate sophisticated analysis for each perspective using AI if available
+      if (Object.values(apiKeys).some(key => key)) {
+        try {
+          const aiService = new AIApiService(apiKeys as ApiKeys);
+          const perspectivePrompt = language === 'de'
+            ? `Analysiere diese Idee aus der Perspektive von ${perspective.name}: "${idea}". Gib eine ${level === 'advanced' ? 'tiefgreifende philosophische' : 'verständliche'} Analyse in 2-3 Sätzen.`
+            : `Analyze this idea from ${perspective.name}'s perspective: "${idea}". Provide a ${level === 'advanced' ? 'profound philosophical' : 'understandable'} analysis in 2-3 sentences.`;
+            
+          const results = await aiService.analyzeWithMultipleAIs(perspectivePrompt, 'Perspective', level, language);
+          const availableResults = Object.entries(results).filter(([_, result]) => result && !result.includes('fehlgeschlagen'));
+          
+          if (availableResults.length > 0) {
+            analysis = availableResults[0][1];
+          }
+        } catch (error) {
+          console.error('AI perspective analysis error:', error);
         }
-      } else {
-        analysis = `${perspective.name}: This idea reveals new dimensions of understanding...`;
       }
       
-      perspectives.push(analysis);
+      // Fallback analysis if AI fails
+      if (!analysis) {
+        if (language === 'de') {
+          switch (perspective.name) {
+            case 'Kant':
+              analysis = level === 'advanced' 
+                ? `Diese Idee berührt die transzendentalen Bedingungen der Erkenntnis und fordert unsere apriorischen Anschauungsformen heraus. Sie zeigt auf, wie synthetische Urteile a priori neue Erkenntnisräume eröffnen können.`
+                : `Die Idee zeigt neue Wege der Erkenntnis und erweitert unser Verständnis der Welt. Sie hilft uns zu verstehen, wie wir Wissen gewinnen.`;
+              break;
+            case 'Heidegger':
+              analysis = level === 'advanced'
+                ? `Das Dasein wird hier in seiner existenzialen Verfasstheit neu verstanden - ein authentisches In-der-Welt-sein. Die Idee enthüllt die ursprüngliche Zeitlichkeit des Seins.`
+                : `Die Idee verändert unser Verständnis davon, was es bedeutet, Mensch zu sein. Sie zeigt uns neue Wege des Lebens auf.`;
+              break;
+            case 'Hegel':
+              analysis = level === 'advanced'
+                ? `Eine dialektische Bewegung zeigt sich - These und Antithese finden zu einer höheren Synthese. Der Weltgeist manifestiert sich in dieser neuen Erkenntnisstufe.`
+                : `Die Idee bringt Gegensätze zusammen und schafft etwas völlig Neues. Sie zeigt, wie sich Widersprüche auflösen lassen.`;
+              break;
+            case 'Nagarjuna':
+              analysis = level === 'advanced'
+                ? `Die Sunyata wird sichtbar - die Leerheit fester Konzepte und die abhängige Entstehung aller Phänomene. Alle Dualitäten lösen sich in der Erkenntnis der Interdependenz auf.`
+                : `Die Idee zeigt uns, dass alles miteinander verbunden ist. Nichts existiert unabhängig von allem anderen.`;
+              break;
+            case 'Wissenschaft':
+              analysis = level === 'advanced'
+                ? `Die Hypothese ist empirisch überprüfbar und eröffnet neue Forschungsmethodologien. Sie folgt dem Prinzip der Falsifizierbarkeit nach Popper.`
+                : `Die Idee kann durch Experimente getestet werden. Sie öffnet neue Forschungsmöglichkeiten.`;
+              break;
+          }
+        } else {
+          analysis = `${perspective.name}: This idea reveals new dimensions of understanding and opens pathways for deeper exploration of reality.`;
+        }
+      }
+      
+      const perspectiveThesis: Thesis = {
+        id: `perspective-${perspective.name.toLowerCase()}-${Date.now()}`,
+        type: 'perspective',
+        title: perspective.name,
+        content: analysis,
+        perspectives: [],
+        category: category.name,
+        level: 0,
+        perspectiveName: perspective.name,
+        children: []
+      };
+      
+      perspectiveTheses.push(perspectiveThesis);
     }
     
-    return perspectives;
+    return perspectiveTheses;
   };
 
   const generateQuintessence = async (parentTheses: Thesis[]): Promise<Thesis> => {
@@ -268,11 +304,11 @@ export default function Weitblickgenerator() {
     setHasStarted(true);
     
     try {
-      const { thesis, antithesis } = await generateThesesFromIdea(initialIdea);
-      const newTheses = [thesis, antithesis];
+      // Generate the 5 individual perspective theses instead of thesis/antithesis
+      const perspectiveTheses = await generatePerspectiveTheses(initialIdea);
       
-      setTheses(newTheses);
-      setCurrentThesisId(thesis.id);
+      setTheses(perspectiveTheses);
+      setCurrentThesisId(perspectiveTheses[0]?.id || null);
     } catch (error) {
       console.error('Analysis error:', error);
     } finally {
@@ -286,7 +322,8 @@ export default function Weitblickgenerator() {
     setIsAnalyzing(true);
     
     try {
-      const quintessence = await generateQuintessence(theses.filter(t => t.level === 0));
+      const currentLevelPerspectives = theses.filter(t => t.level === 0 && t.type === 'perspective');
+      const quintessence = await generateQuintessence(currentLevelPerspectives);
       setTheses(prev => [...prev, quintessence]);
       setCurrentThesisId(quintessence.id);
     } catch (error) {
@@ -300,24 +337,18 @@ export default function Weitblickgenerator() {
     setIsAnalyzing(true);
     
     try {
-      const { thesis, antithesis } = await generateThesesFromIdea(fromThesis.content);
+      // Generate new perspective theses based on the selected thesis
+      const newPerspectiveTheses = await generatePerspectiveTheses(fromThesis.content);
       
-      const newThesis = {
+      const updatedTheses = newPerspectiveTheses.map(thesis => ({
         ...thesis,
         level: fromThesis.level + 1,
         parentId: fromThesis.id,
-        id: `forward-thesis-${Date.now()}`
-      };
+        id: `forward-${thesis.perspectiveName?.toLowerCase()}-${Date.now()}`
+      }));
       
-      const newAntithesis = {
-        ...antithesis,
-        level: fromThesis.level + 1,
-        parentId: fromThesis.id,
-        id: `forward-antithesis-${Date.now()}`
-      };
-      
-      setTheses(prev => [...prev, newThesis, newAntithesis]);
-      setCurrentThesisId(newThesis.id);
+      setTheses(prev => [...prev, ...updatedTheses]);
+      setCurrentThesisId(updatedTheses[0]?.id || null);
     } catch (error) {
       console.error('Forward thinking error:', error);
     } finally {
@@ -352,30 +383,6 @@ export default function Weitblickgenerator() {
             </p>
           </div>
 
-          {showSettings && (
-            <div className="mb-6">
-              <Tabs defaultValue="admin" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="admin">Administration</TabsTrigger>
-                  <TabsTrigger value="integration">Gemini Legacy</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="admin">
-                  <AdminInterface 
-                    onApiKeysUpdate={handleApiKeysUpdate}
-                    currentApiKeys={apiKeys}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="integration">
-                  <GeminiIntegration 
-                    onApiKeySet={(key) => handleApiKeysUpdate({ ...apiKeys, gemini: key })}
-                    currentApiKey={apiKeys.gemini}
-                  />
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
 
           <Card className="bg-gradient-to-br from-card via-card to-primary/5 border-primary/20 shadow-2xl">
             <CardHeader>
@@ -429,6 +436,46 @@ export default function Weitblickgenerator() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* API Administration - Collapsible */}
+          <div className="mt-6">
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-between mb-4"
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    API Administration
+                  </div>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <Tabs defaultValue="admin" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="admin">Administration</TabsTrigger>
+                    <TabsTrigger value="integration">Gemini Legacy</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="admin">
+                    <AdminInterface 
+                      onApiKeysUpdate={handleApiKeysUpdate}
+                      currentApiKeys={apiKeys}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="integration">
+                    <GeminiIntegration 
+                      onApiKeySet={(key) => handleApiKeysUpdate({ ...apiKeys, gemini: key })}
+                      currentApiKey={apiKeys.gemini}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
         </div>
       </div>
     );
@@ -506,15 +553,20 @@ export default function Weitblickgenerator() {
               </CardContent>
             </Card>
 
-            {/* Aktuelle Thesen-Ebene */}
+            {/* Aktuelle Perspektiven-Ebene */}
             {currentLevelTheses.map((thesis) => (
-              <Card key={thesis.id} className={`${
-                thesis.id === currentThesisId ? 'border-primary/50 bg-gradient-to-br from-primary/5 to-card' : 'bg-card/50'
-              }`}>
+              <Card 
+                key={thesis.id} 
+                className={`cursor-pointer transition-all ${
+                  thesis.id === currentThesisId 
+                    ? 'border-primary/50 bg-gradient-to-br from-primary/5 to-card' 
+                    : 'bg-card/50 hover:bg-card'
+                }`}
+                onClick={() => setCurrentThesisId(thesis.id)}
+              >
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    {thesis.type === 'thesis' && <Target className="h-5 w-5 text-green-600" />}
-                    {thesis.type === 'antithesis' && <AlertTriangle className="h-5 w-5 text-red-600" />}
+                    {thesis.type === 'perspective' && <Eye className="h-5 w-5 text-blue-600" />}
                     {thesis.type === 'quintessence' && <Lightbulb className="h-5 w-5 text-purple-600" />}
                     {thesis.title}
                     <Badge variant="outline" className="ml-auto text-xs">
@@ -523,28 +575,15 @@ export default function Weitblickgenerator() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-base">{thesis.content}</p>
-                  
-                  {thesis.perspectives && thesis.perspectives.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-2 flex items-center gap-2">
-                        <Eye className="h-4 w-4" />
-                        Perspektiven-Analyse
-                      </h4>
-                      <div className="space-y-1">
-                        {thesis.perspectives.map((perspective, i) => (
-                          <div key={i} className="text-sm p-2 bg-muted/20 rounded">
-                            {perspective}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-base leading-relaxed">{thesis.content}</p>
 
                   <div className="flex gap-2 pt-2">
                     {thesis.id === currentThesisId && (
                       <Button
-                        onClick={() => handleThinkForward(thesis)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleThinkForward(thesis);
+                        }}
                         disabled={isAnalyzing}
                         variant="outline"
                         size="sm"
@@ -559,19 +598,21 @@ export default function Weitblickgenerator() {
             ))}
 
             {/* Quintessenz Generator */}
-            {currentLevelTheses.length >= 2 && !currentLevelTheses.some(t => t.type === 'quintessence') && (
-              <Card className="border-dashed border-2 border-purple-200 bg-purple-50/50">
+            {currentLevelTheses.length >= 3 && 
+             currentLevelTheses.some(t => t.type === 'perspective') && 
+             !currentLevelTheses.some(t => t.type === 'quintessence') && (
+              <Card className="border-dashed border-2 border-purple-300/50 bg-gradient-to-br from-purple-50/30 to-purple-100/30">
                 <CardContent className="text-center py-8">
                   <Button
                     onClick={handleGenerateQuintessence}
                     disabled={isAnalyzing}
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg"
                   >
                     <Lightbulb className="h-4 w-4 mr-2" />
-                    Quintessenz generieren
+                    Quintessenz aus allen Perspektiven generieren
                   </Button>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Vereint These und Antithese zu einer höheren Synthese
+                    Vereint alle {currentLevelTheses.filter(t => t.type === 'perspective').length} Perspektiven zu einer höheren Synthese
                   </p>
                 </CardContent>
               </Card>
@@ -594,9 +635,8 @@ export default function Weitblickgenerator() {
                       }`}
                       onClick={() => setCurrentThesisId(thesis.id)}
                     >
-                      {thesis.type === 'thesis' && <Target className="h-4 w-4 text-green-600" />}
-                      {thesis.type === 'antithesis' && <AlertTriangle className="h-4 w-4 text-red-600" />}
-                      {thesis.type === 'quintessence' && <Lightbulb className="h-4 w-4 text-purple-600" />}
+                       {thesis.type === 'perspective' && <Eye className="h-4 w-4 text-blue-600" />}
+                       {thesis.type === 'quintessence' && <Lightbulb className="h-4 w-4 text-purple-600" />}
                       <div className="flex-1">
                         <p className={`text-sm font-medium ${
                           thesis.id === currentThesisId ? 'text-primary' : 'text-foreground'
