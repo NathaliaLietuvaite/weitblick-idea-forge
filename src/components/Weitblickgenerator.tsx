@@ -462,8 +462,8 @@ export default function Weitblickgenerator() {
             </CardContent>
           </Card>
 
-          {/* API Administration - Collapsible */}
-          <div className="mt-6">
+          {/* API Administration - Collapsible at bottom */}
+          <div className="mt-8">
             <Collapsible>
               <CollapsibleTrigger asChild>
                 <Button 
@@ -531,31 +531,6 @@ export default function Weitblickgenerator() {
             </div>
           </div>
         </div>
-
-        {showSettings && (
-          <div className="mb-6">
-            <Tabs defaultValue="admin" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="admin">Administration</TabsTrigger>
-                <TabsTrigger value="integration">Gemini Legacy</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="admin">
-                <AdminInterface 
-                  onApiKeysUpdate={handleApiKeysUpdate}
-                  currentApiKeys={apiKeys}
-                />
-              </TabsContent>
-              
-              <TabsContent value="integration">
-                <GeminiIntegration 
-                  onApiKeySet={(key) => handleApiKeysUpdate({ ...apiKeys, gemini: key })}
-                  currentApiKey={apiKeys.gemini}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Hauptbereich - Aktuelle Thesen */}
