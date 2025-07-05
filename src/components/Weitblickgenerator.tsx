@@ -3,47 +3,36 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Eye, Compass, Target, Lightbulb, Settings } from 'lucide-react';
+import { AlertTriangle, Eye, Compass, Target, Lightbulb, Settings, ArrowLeft, ArrowRight, Brain } from 'lucide-react';
 import { GeminiIntegration, GeminiService } from './GeminiIntegration';
 import { AdminInterface, ApiKeys } from './AdminInterface';
 import { AIApiService } from './AIApiService';
 
-interface Analysis {
-  phase: number;
-  question: string;
-  answer?: string;
-  perspectives?: string[];
-  risks?: string[];
-  opportunities?: string[];
+interface Thesis {
+  id: string;
+  type: 'thesis' | 'antithesis' | 'quintessence';
+  title: string;
+  content: string;
+  perspectives: string[];
+  category: string;
+  level: number;
+  parentId?: string;
+  children: string[];
 }
 
-const PHASES = [
-  {
-    title: "Kernhypothese",
-    description: "Das Axiom der Revolution",
-    icon: Lightbulb,
-    question: "Was ist die eine fundamentale Eigenschaft oder das Prinzip, das Ihre Idee zur Grundlage macht? Welche etablierte Annahme wird dadurch in Frage gestellt?"
-  },
-  {
-    title: "Direkte Problemlösung", 
-    description: "Kausale Ebene 1",
-    icon: Target,
-    question: "Welches spezifische Problem löst Ihre Hypothese unmittelbar? Was funktioniert dadurch plötzlich, was vorher nicht funktionierte?"
-  },
-  {
-    title: "Kaskade der Möglichkeiten",
-    description: "Kausale Ebenen 2-N", 
-    icon: Eye,
-    question: "Wenn das Problem gelöst ist - welche völlig neuen Möglichkeiten entstehen dadurch? Was wird dadurch erst denkbar?"
-  },
-  {
-    title: "Resilienz-Prüfung",
-    description: "Der Advocatus Diaboli",
-    icon: AlertTriangle,
-    question: "Welche neuen Risiken entstehen? Was ist das größte Missbrauchspotenzial? Welches ethische Prinzip muss im Kern verankert sein?"
-  }
+interface IdeaCategory {
+  name: string;
+  keywords: string[];
+  icon: any;
+}
+
+const IDEA_CATEGORIES: IdeaCategory[] = [
+  { name: 'Wissenschaft', keywords: ['hypothese', 'theorie', 'experiment', 'beweis', 'forschung'], icon: Target },
+  { name: 'Technologie', keywords: ['ki', 'digital', 'automatisierung', 'innovation', 'software'], icon: Lightbulb },
+  { name: 'Gesellschaft', keywords: ['politik', 'demokratie', 'gemeinschaft', 'kultur', 'soziologie'], icon: Eye },
+  { name: 'Philosophie', keywords: ['bewusstsein', 'realität', 'wahrheit', 'existenz', 'ontologie'], icon: Compass },
+  { name: 'Ökonomie', keywords: ['wirtschaft', 'markt', 'geld', 'wert', 'kapital'], icon: AlertTriangle }
 ];
 
 const PERSPECTIVES = [
@@ -55,13 +44,12 @@ const PERSPECTIVES = [
 ];
 
 export default function Weitblickgenerator() {
-  const [currentPhase, setCurrentPhase] = useState(0);
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
-  const [currentAnswer, setCurrentAnswer] = useState('');
+  const [theses, setTheses] = useState<Thesis[]>([]);
+  const [currentThesisId, setCurrentThesisId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [initialIdea, setInitialIdea] = useState('');
   const [hasStarted, setHasStarted] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(true);
   const [apiKeys, setApiKeys] = useState<Partial<ApiKeys>>(() => {
     return {
       gemini: localStorage.getItem('gemini_api_key') || '',
@@ -85,51 +73,7 @@ export default function Weitblickgenerator() {
     if (newApiKeys.gemini) {
       setGeminiService(new GeminiService(newApiKeys.gemini));
     }
-    setShowSettings(false);
   };
-
-  const analyzeWithPerspectives = useCallback(async (answer: string, phase: number) => {
-    const perspectives = [];
-    const risks = [];
-    const opportunities = [];
-
-    // Detect language and sophistication level
-    const sophisticationLevel = detectSophisticationLevel(answer);
-    const language = detectLanguage(answer);
-
-    try {
-      switch (phase) {
-        case 0: // Kernhypothese
-          perspectives.push(await analyzeFromKantPerspective(answer, sophisticationLevel, language));
-          perspectives.push(await analyzeFromHeideggerPerspective(answer, sophisticationLevel, language));
-          perspectives.push(await analyzeFromHegelPerspective(answer, sophisticationLevel, language));
-          perspectives.push(await analyzeFromNagarjunaPerspective(answer, sophisticationLevel, language));
-          perspectives.push(await analyzeFromSciencePerspective(answer, sophisticationLevel, language));
-          break;
-        case 1: // Problemlösung
-          const problemAnalysis = await analyzeProblemSolution(answer, sophisticationLevel, language);
-          opportunities.push(...problemAnalysis.opportunities);
-          risks.push(...problemAnalysis.risks);
-          break;
-        case 2: // Kaskade
-          const cascadeAnalysis = await analyzeCascadeEffects(answer, sophisticationLevel, language);
-          opportunities.push(...cascadeAnalysis.opportunities);
-          risks.push(...cascadeAnalysis.risks);
-          break;
-        case 3: // Resilienz
-          const resilienceAnalysis = await analyzeResilience(answer, sophisticationLevel, language);
-          risks.push(...resilienceAnalysis.risks);
-          opportunities.push(...resilienceAnalysis.safeguards);
-          break;
-      }
-    } catch (error) {
-      console.error('Analysis error:', error);
-      // Fallback to basic analysis
-      return getBasicAnalysis(phase);
-    }
-
-    return { perspectives, risks, opportunities };
-  }, []);
 
   const detectSophisticationLevel = (text: string): 'basic' | 'intermediate' | 'advanced' => {
     const academicTerms = ['epistemologie', 'ontologie', 'paradigma', 'empirisch', 'relational', 'dialektisch', 'axiom'];
@@ -147,215 +91,250 @@ export default function Weitblickgenerator() {
     return germanCount >= 2 ? 'de' : 'en';
   };
 
-  const analyzeFromKantPerspective = async (text: string, level: string, lang: string): Promise<string> => {
-    // Try multiple AI APIs if available
+  const categorizeIdea = (idea: string): IdeaCategory => {
+    const lowerIdea = idea.toLowerCase();
+    
+    for (const category of IDEA_CATEGORIES) {
+      const matchCount = category.keywords.filter(keyword => 
+        lowerIdea.includes(keyword)
+      ).length;
+      
+      if (matchCount > 0) {
+        return category;
+      }
+    }
+    
+    return IDEA_CATEGORIES[3]; // Default to Philosophy
+  };
+
+  const generateThesesFromIdea = async (idea: string): Promise<{ thesis: Thesis; antithesis: Thesis }> => {
+    const category = categorizeIdea(idea);
+    const level = detectSophisticationLevel(idea);
+    const language = detectLanguage(idea);
+    
+    const thesisId = `thesis-${Date.now()}`;
+    const antithesisId = `antithesis-${Date.now()}`;
+    
+    let thesisContent = '';
+    let antithesisContent = '';
+    let perspectives: string[] = [];
+
+    // Try AI APIs first
     if (Object.values(apiKeys).some(key => key)) {
       try {
         const aiService = new AIApiService(apiKeys as ApiKeys);
-        const results = await aiService.analyzeWithMultipleAIs(text, 'Kant', level, lang);
-        
+        const analysisPrompt = language === 'de' 
+          ? `Analysiere diese Idee: "${idea}". Generiere eine These und eine Antithese. Antworte in diesem Format: THESE: [These] | ANTITHESE: [Antithese]`
+          : `Analyze this idea: "${idea}". Generate a thesis and antithesis. Respond in this format: THESIS: [thesis] | ANTITHESIS: [antithesis]`;
+          
+        const results = await aiService.analyzeWithMultipleAIs(analysisPrompt, 'Generator', level, language);
         const availableResults = Object.entries(results).filter(([_, result]) => result && !result.includes('fehlgeschlagen'));
+        
         if (availableResults.length > 0) {
-          return availableResults[0][1];
+          const result = availableResults[0][1];
+          const parts = result.split('|');
+          if (parts.length >= 2) {
+            thesisContent = parts[0].replace(/^(THESE:|THESIS:)/i, '').trim();
+            antithesisContent = parts[1].replace(/^(ANTITHESE:|ANTITHESIS:)/i, '').trim();
+          }
         }
       } catch (error) {
         console.error('AI API error:', error);
       }
     }
-    
-    if (lang === 'de') {
-      const analysis = `Kant: Diese Hypothese berührt die Erkenntnisbedingungen unserer Vernunft. ${
-        level === 'advanced' 
-          ? 'Sie fordert die transzendentalen Kategorien heraus und erweitert möglicherweise die Grenzen möglicher Erfahrung. Die apriorischen Anschauungsformen von Raum und Zeit werden hier neu kontextualisiert.'
-          : level === 'intermediate'
-          ? 'Sie stellt die Frage, wie wir überhaupt zu sicherem Wissen gelangen können und welche Rolle unser Verstand dabei spielt.'
-          : 'Sie zeigt uns neue Wege, wie wir die Welt verstehen können und was wir wirklich wissen können.'
-      }`;
-      return analysis;
-    }
-    return `Kant: This hypothesis challenges the conditions of knowledge itself...`;
-  };
 
-  const analyzeFromHeideggerPerspective = async (text: string, level: string, lang: string): Promise<string> => {
-    if (geminiService) {
-      try {
-        return await geminiService.analyzeText(text, 'Heidegger', level, lang);
-      } catch (error) {
-        console.error('Gemini analysis failed, using fallback:', error);
+    // Fallback analysis
+    if (!thesisContent || !antithesisContent) {
+      if (language === 'de') {
+        thesisContent = `These: ${idea} - Diese Idee eröffnet revolutionäre Möglichkeiten durch ihre innovative Herangehensweise.`;
+        antithesisContent = `Antithese: Kritische Betrachtung von "${idea}" - Diese Idee birgt potenzielle Risiken und ungelöste Widersprüche.`;
+      } else {
+        thesisContent = `Thesis: ${idea} - This idea opens revolutionary possibilities through its innovative approach.`;
+        antithesisContent = `Antithesis: Critical view of "${idea}" - This idea harbors potential risks and unresolved contradictions.`;
       }
     }
-    
-    if (lang === 'de') {
-      const analysis = `Heidegger: ${
-        level === 'advanced'
-          ? 'Das Dasein wird hier in seiner fundamentalen Geworfenheit und seinem Sein-zur-Welt neu verstanden. Die Idee enthüllt eine neue Dimension des In-der-Welt-seins und der existenzialen Verfasstheit.'
-          : level === 'intermediate'
-          ? 'Diese Idee verändert unser Verständnis davon, was es bedeutet, Mensch zu sein und in der Welt zu leben.'
-          : 'Die Idee zeigt uns eine neue Art, wie Menschen miteinander und mit der Welt verbunden sind.'
-      }`;
-      return analysis;
-    }
-    return `Heidegger: This idea reveals new dimensions of Being-in-the-world...`;
+
+    // Generate perspectives
+    perspectives = await generatePerspectivesForIdea(idea, level, language);
+
+    const thesis: Thesis = {
+      id: thesisId,
+      type: 'thesis',
+      title: language === 'de' ? 'These' : 'Thesis',
+      content: thesisContent,
+      perspectives: perspectives.slice(0, 3),
+      category: category.name,
+      level: 0,
+      children: [antithesisId]
+    };
+
+    const antithesis: Thesis = {
+      id: antithesisId,
+      type: 'antithesis', 
+      title: language === 'de' ? 'Antithese' : 'Antithesis',
+      content: antithesisContent,
+      perspectives: perspectives.slice(2, 5),
+      category: category.name,
+      level: 0,
+      parentId: thesisId,
+      children: []
+    };
+
+    return { thesis, antithesis };
   };
 
-  const analyzeFromHegelPerspective = async (text: string, level: string, lang: string): Promise<string> => {
-    if (geminiService) {
-      try {
-        return await geminiService.analyzeText(text, 'Hegel', level, lang);
-      } catch (error) {
-        console.error('Gemini analysis failed, using fallback:', error);
+  const generatePerspectivesForIdea = async (idea: string, level: string, language: string): Promise<string[]> => {
+    const perspectives = [];
+    
+    // Generate perspective analysis for each of the 5 systems
+    for (const perspective of PERSPECTIVES) {
+      let analysis = '';
+      
+      if (language === 'de') {
+        switch (perspective.name) {
+          case 'Kant':
+            analysis = level === 'advanced' 
+              ? `${perspective.name}: Diese Idee berührt die transzendentalen Bedingungen der Erkenntnis und fordert unsere apriorischen Anschauungsformen heraus.`
+              : `${perspective.name}: Die Idee zeigt neue Wege der Erkenntnis und erweitert unser Verständnis der Welt.`;
+            break;
+          case 'Heidegger':
+            analysis = level === 'advanced'
+              ? `${perspective.name}: Das Dasein wird hier in seiner existenzialen Verfasstheit neu verstanden - ein authentisches In-der-Welt-sein.`
+              : `${perspective.name}: Die Idee verändert unser Verständnis davon, was es bedeutet, Mensch zu sein.`;
+            break;
+          case 'Hegel':
+            analysis = level === 'advanced'
+              ? `${perspective.name}: Eine dialektische Bewegung zeigt sich - These und Antithese finden zu einer höheren Synthese.`
+              : `${perspective.name}: Die Idee bringt Gegensätze zusammen und schafft etwas völlig Neues.`;
+            break;
+          case 'Nagarjuna':
+            analysis = level === 'advanced'
+              ? `${perspective.name}: Die Sunyata wird sichtbar - die Leerheit fester Konzepte und die abhängige Entstehung aller Phänomene.`
+              : `${perspective.name}: Die Idee zeigt uns, dass alles miteinander verbunden ist.`;
+            break;
+          case 'Wissenschaft':
+            analysis = level === 'advanced'
+              ? `${perspective.name}: Die Hypothese ist empirisch überprüfbar und eröffnet neue Forschungsmethodologien.`
+              : `${perspective.name}: Die Idee kann durch Experimente getestet werden.`;
+            break;
+        }
+      } else {
+        analysis = `${perspective.name}: This idea reveals new dimensions of understanding...`;
       }
+      
+      perspectives.push(analysis);
     }
     
-    if (lang === 'de') {
-      const analysis = `Hegel: ${
-        level === 'advanced'
-          ? 'Die dialektische Bewegung von These-Antithese-Synthese findet hier eine neue Wendung. Der Weltgeist manifestiert sich in dieser Idee als Aufhebung bestehender Widersprüche auf einer höheren Ebene der Wahrheit.'
-          : level === 'intermediate'
-          ? 'Diese Idee löst alte Gegensätze auf und schafft eine neue, höhere Einheit des Verstehens.'
-          : 'Die Idee bringt verschiedene Gegensätze zusammen und schafft etwas völlig Neues daraus.'
-      }`;
-      return analysis;
+    return perspectives;
+  };
+
+  const generateQuintessence = async (parentTheses: Thesis[]): Promise<Thesis> => {
+    const language = detectLanguage(initialIdea);
+    const level = detectSophisticationLevel(initialIdea);
+    
+    const quintessenceId = `quintessence-${Date.now()}`;
+    
+    let content = '';
+    
+    if (language === 'de') {
+      content = level === 'advanced'
+        ? `Quintessenz: Die dialektische Spannung zwischen These und Antithese führt zu einer höheren Synthese, die beide Pole in sich aufhebt und transzendiert. Eine neue Wahrheitsebene wird erreicht.`
+        : `Quintessenz: Aus dem Spannungsfeld zwischen These und Antithese entsteht eine neue, umfassendere Sichtweise, die beide Perspektiven vereint.`;
+    } else {
+      content = `Quintessence: The dialectical tension between thesis and antithesis leads to a higher synthesis that transcends both poles.`;
     }
-    return `Hegel: This idea represents a dialectical synthesis...`;
-  };
 
-  const analyzeFromNagarjunaPerspective = async (text: string, level: string, lang: string): Promise<string> => {
-    if (geminiService) {
-      try {
-        return await geminiService.analyzeText(text, 'Nagarjuna', level, lang);
-      } catch (error) {
-        console.error('Gemini analysis failed, using fallback:', error);
-      }
-    }
-    
-    if (lang === 'de') {
-      const analysis = `Nagarjuna: ${
-        level === 'advanced'
-          ? 'Die Idee verkörpert die Sunyata - die Leerheit von eigenständiger Existenz. Sie dekonstruiert fixierte Begriffe und zeigt die abhängige Entstehung (Pratityasamutpada) aller Phänomene.'
-          : level === 'intermediate'
-          ? 'Diese Idee befreit uns von starren Denkmustern und zeigt, dass alles miteinander verbunden und voneinander abhängig ist.'
-          : 'Die Idee hilft uns zu verstehen, dass nichts für sich allein existiert - alles hängt mit allem zusammen.'
-      }`;
-      return analysis;
-    }
-    return `Nagarjuna: This idea embodies the emptiness of independent existence...`;
-  };
+    // Generate combined perspectives
+    const allPerspectives = parentTheses.flatMap(t => t.perspectives);
+    const uniquePerspectives = [...new Set(allPerspectives)];
 
-  const analyzeFromSciencePerspective = async (text: string, level: string, lang: string): Promise<string> => {
-    if (geminiService) {
-      try {
-        return await geminiService.analyzeText(text, 'Wissenschaft', level, lang);
-      } catch (error) {
-        console.error('Gemini analysis failed, using fallback:', error);
-      }
-    }
-    
-    if (lang === 'de') {
-      const analysis = `Wissenschaft: ${
-        level === 'advanced'
-          ? 'Die Hypothese ist prinzipiell empirisch überprüfbar und könnte neue Forschungsmethodologien erfordern. Sie deutet auf messbare Korrelationen und quantifizierbare Effekte hin.'
-          : level === 'intermediate'
-          ? 'Die Idee kann durch Experimente und Messungen getestet werden und eröffnet neue Forschungsmöglichkeiten.'
-          : 'Diese Idee können Wissenschaftler durch Versuche prüfen und dabei neue Entdeckungen machen.'
-      }`;
-      return analysis;
-    }
-    return `Science: This hypothesis offers empirically testable predictions...`;
-  };
-
-  const analyzeProblemSolution = async (text: string, level: string, lang: string) => {
-    const opportunities = lang === 'de' 
-      ? ['Neue Forschungsfelder entstehen', 'Bestehende Grenzen werden überwunden', 'Innovative Technologien werden möglich']
-      : ['New research fields emerge', 'Existing limitations are overcome', 'Innovative technologies become possible'];
-    
-    const risks = lang === 'de'
-      ? ['Unvorhergesehene Nebeneffekte', 'Komplexe Systeminteraktionen']
-      : ['Unforeseen side effects', 'Complex system interactions'];
-    
-    return { opportunities, risks };
-  };
-
-  const analyzeCascadeEffects = async (text: string, level: string, lang: string) => {
-    const opportunities = lang === 'de'
-      ? ['Gesellschaftliche Transformation', 'Wissenschaftliche Revolution', 'Neue Paradigmen', 'Globale Vernetzung']
-      : ['Societal transformation', 'Scientific revolution', 'New paradigms', 'Global connectivity'];
-    
-    const risks = lang === 'de'
-      ? ['Systemische Instabilität', 'Ungleichgewichte', 'Anpassungsschwierigkeiten']
-      : ['Systemic instability', 'Imbalances', 'Adaptation difficulties'];
-    
-    return { opportunities, risks };
-  };
-
-  const analyzeResilience = async (text: string, level: string, lang: string) => {
-    const risks = lang === 'de'
-      ? ['Ethische Dilemmata', 'Missbrauchspotenzial', 'Ungewollte Konsequenzen', 'Machtkonzentrationen']
-      : ['Ethical dilemmas', 'Abuse potential', 'Unintended consequences', 'Power concentrations'];
-    
-    const safeguards = lang === 'de'
-      ? ['Ethische Rahmenwerke', 'Transparenz-Mechanismen', 'Demokratische Kontrolle']
-      : ['Ethical frameworks', 'Transparency mechanisms', 'Democratic control'];
-    
-    return { risks, safeguards };
-  };
-
-  const getBasicAnalysis = (phase: number) => {
     return {
-      perspectives: phase === 0 ? [
-        'Kant: Erkenntnistheoretische Betrachtung erforderlich',
-        'Heidegger: Existenzielle Dimension zu untersuchen',
-        'Hegel: Dialektisches Potenzial vorhanden',
-        'Nagarjuna: Dekonstruktive Analyse notwendig',
-        'Wissenschaft: Empirische Überprüfung möglich'
-      ] : [],
-      risks: ['Weitere Analyse erforderlich'],
-      opportunities: ['Potenzial erkennbar']
+      id: quintessenceId,
+      type: 'quintessence',
+      title: language === 'de' ? 'Quintessenz' : 'Quintessence',
+      content,
+      perspectives: uniquePerspectives.slice(0, 5),
+      category: parentTheses[0]?.category || 'Philosophie',
+      level: (parentTheses[0]?.level || 0) + 1,
+      parentId: parentTheses[0]?.id,
+      children: []
     };
   };
 
-  const handleStartAnalysis = () => {
+  const handleStartAnalysis = async () => {
     if (!initialIdea.trim()) return;
+    
+    setIsAnalyzing(true);
     setHasStarted(true);
-    setCurrentPhase(0);
+    
+    try {
+      const { thesis, antithesis } = await generateThesesFromIdea(initialIdea);
+      const newTheses = [thesis, antithesis];
+      
+      setTheses(newTheses);
+      setCurrentThesisId(thesis.id);
+    } catch (error) {
+      console.error('Analysis error:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
-  const handleNextPhase = async () => {
-    if (!currentAnswer.trim()) return;
+  const handleGenerateQuintessence = async () => {
+    if (theses.length < 2) return;
     
     setIsAnalyzing(true);
     
-    // Simuliere Analyseprozess
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const quintessence = await generateQuintessence(theses.filter(t => t.level === 0));
+      setTheses(prev => [...prev, quintessence]);
+      setCurrentThesisId(quintessence.id);
+    } catch (error) {
+      console.error('Quintessence generation error:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleThinkForward = async (fromThesis: Thesis) => {
+    setIsAnalyzing(true);
     
-    const analysis = await analyzeWithPerspectives(currentAnswer, currentPhase);
-    
-    const newAnalysis: Analysis = {
-      phase: currentPhase,
-      question: PHASES[currentPhase].question,
-      answer: currentAnswer,
-      ...analysis
-    };
-    
-    setAnalyses(prev => [...prev, newAnalysis]);
-    setCurrentAnswer('');
-    setIsAnalyzing(false);
-    
-    if (currentPhase < PHASES.length - 1) {
-      setCurrentPhase(prev => prev + 1);
+    try {
+      const { thesis, antithesis } = await generateThesesFromIdea(fromThesis.content);
+      
+      const newThesis = {
+        ...thesis,
+        level: fromThesis.level + 1,
+        parentId: fromThesis.id,
+        id: `forward-thesis-${Date.now()}`
+      };
+      
+      const newAntithesis = {
+        ...antithesis,
+        level: fromThesis.level + 1,
+        parentId: fromThesis.id,
+        id: `forward-antithesis-${Date.now()}`
+      };
+      
+      setTheses(prev => [...prev, newThesis, newAntithesis]);
+      setCurrentThesisId(newThesis.id);
+    } catch (error) {
+      console.error('Forward thinking error:', error);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
   const resetGenerator = () => {
     setHasStarted(false);
-    setCurrentPhase(0);
-    setAnalyses([]);
-    setCurrentAnswer('');
+    setTheses([]);
+    setCurrentThesisId(null);
     setInitialIdea('');
     setIsAnalyzing(false);
   };
 
-  const progress = ((currentPhase + (currentAnswer ? 0.5 : 0)) / PHASES.length) * 100;
+  const currentThesis = theses.find(t => t.id === currentThesisId);
+  const currentLevelTheses = theses.filter(t => t.level === (currentThesis?.level || 0));
 
   if (!hasStarted) {
     return (
@@ -369,18 +348,43 @@ export default function Weitblickgenerator() {
               </h1>
             </div>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Ein interaktives System zur Analyse und Navigation visionärer Ideen durch die Perspektiven von Kant, Heidegger, Hegel, Nagarjuna und der modernen Wissenschaft.
+              Ein interaktives System zur automatischen Generierung gegensätzlicher Thesen und deren Quintessenz durch die Perspektiven von Kant, Heidegger, Hegel, Nagarjuna und der modernen Wissenschaft.
             </p>
           </div>
+
+          {showSettings && (
+            <div className="mb-6">
+              <Tabs defaultValue="admin" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="admin">Administration</TabsTrigger>
+                  <TabsTrigger value="integration">Gemini Legacy</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="admin">
+                  <AdminInterface 
+                    onApiKeysUpdate={handleApiKeysUpdate}
+                    currentApiKeys={apiKeys}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="integration">
+                  <GeminiIntegration 
+                    onApiKeySet={(key) => handleApiKeysUpdate({ ...apiKeys, gemini: key })}
+                    currentApiKey={apiKeys.gemini}
+                  />
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
 
           <Card className="bg-gradient-to-br from-card via-card to-primary/5 border-primary/20 shadow-2xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Lightbulb className="h-5 w-5 text-primary" />
+                <Brain className="h-5 w-5 text-primary" />
                 Ihre revolutionäre Idee
               </CardTitle>
               <CardDescription>
-                Beschreiben Sie Ihre Hypothese, Vision oder Ihren Lösungsansatz. Der Generator wird Sie durch einen strukturierten Analyseprozess führen.
+                Beschreiben Sie Ihre Hypothese oder Vision. Das System erkennt automatisch die Kategorie und generiert gegensätzliche Thesen mit anschließender Quintessenz.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -389,6 +393,7 @@ export default function Weitblickgenerator() {
                 value={initialIdea}
                 onChange={(e) => setInitialIdea(e.target.value)}
                 className="min-h-24 text-base"
+                disabled={isAnalyzing}
               />
               
               <div className="flex flex-wrap gap-2 mb-4">
@@ -406,12 +411,21 @@ export default function Weitblickgenerator() {
 
               <Button 
                 onClick={handleStartAnalysis}
-                disabled={!initialIdea.trim()}
+                disabled={!initialIdea.trim() || isAnalyzing}
                 className="w-full bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300"
                 size="lg"
               >
-                <Compass className="h-4 w-4 mr-2" />
-                Analyse starten
+                {isAnalyzing ? (
+                  <>
+                    <Brain className="h-4 w-4 mr-2 animate-pulse" />
+                    Analysiere...
+                  </>
+                ) : (
+                  <>
+                    <Compass className="h-4 w-4 mr-2" />
+                    Thesen-Generierung starten
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -420,13 +434,10 @@ export default function Weitblickgenerator() {
     );
   }
 
-  const currentPhaseData = PHASES[currentPhase];
-  const IconComponent = currentPhaseData.icon;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-primary/5 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Header mit Progress */}
+        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -447,10 +458,6 @@ export default function Weitblickgenerator() {
               </Button>
             </div>
           </div>
-          <Progress value={progress} className="h-2" />
-          <p className="text-sm text-muted-foreground mt-2">
-            Phase {currentPhase + 1} von {PHASES.length} • {Math.round(progress)}% abgeschlossen
-          </p>
         </div>
 
         {showSettings && (
@@ -479,64 +486,53 @@ export default function Weitblickgenerator() {
         )}
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Hauptbereich - Aktuelle Phase */}
+          {/* Hauptbereich - Aktuelle Thesen */}
           <div className="lg:col-span-2 space-y-6">
-            <Card className="bg-gradient-to-br from-card to-primary/5 border-primary/20">
+            {/* Original Idee */}
+            <Card className="bg-gradient-to-br from-card to-muted/5 border-muted/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <IconComponent className="h-5 w-5 text-primary" />
-                  {currentPhaseData.title}
+                  <Brain className="h-5 w-5 text-muted-foreground" />
+                  Ursprungsidee
                 </CardTitle>
-                <CardDescription>{currentPhaseData.description}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-muted/50 rounded-lg border-l-4 border-primary">
-                  <p className="font-medium">{currentPhaseData.question}</p>
+              <CardContent>
+                <p className="text-muted-foreground italic">{initialIdea}</p>
+                <div className="mt-2">
+                  <Badge variant="outline" className="text-xs">
+                    Kategorie: {currentThesis?.category || 'Unbekannt'}
+                  </Badge>
                 </div>
-                
-                <Textarea
-                  placeholder="Ihre Antwort..."
-                  value={currentAnswer}
-                  onChange={(e) => setCurrentAnswer(e.target.value)}
-                  className="min-h-32"
-                  disabled={isAnalyzing}
-                />
-
-                <Button 
-                  onClick={handleNextPhase}
-                  disabled={!currentAnswer.trim() || isAnalyzing}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isAnalyzing ? 'Analysiere...' : 
-                   currentPhase === PHASES.length - 1 ? 'Analyse abschließen' : 'Weiter zur nächsten Phase'}
-                </Button>
               </CardContent>
             </Card>
 
-            {/* Bisherige Analysen */}
-            {analyses.map((analysis, index) => (
-              <Card key={index} className="bg-card/50">
+            {/* Aktuelle Thesen-Ebene */}
+            {currentLevelTheses.map((thesis) => (
+              <Card key={thesis.id} className={`${
+                thesis.id === currentThesisId ? 'border-primary/50 bg-gradient-to-br from-primary/5 to-card' : 'bg-card/50'
+              }`}>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {React.createElement(PHASES[analysis.phase].icon, { className: "h-4 w-4" })}
-                    {PHASES[analysis.phase].title}
+                  <CardTitle className="flex items-center gap-2">
+                    {thesis.type === 'thesis' && <Target className="h-5 w-5 text-green-600" />}
+                    {thesis.type === 'antithesis' && <AlertTriangle className="h-5 w-5 text-red-600" />}
+                    {thesis.type === 'quintessence' && <Lightbulb className="h-5 w-5 text-purple-600" />}
+                    {thesis.title}
+                    <Badge variant="outline" className="ml-auto text-xs">
+                      Level {thesis.level}
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="p-3 bg-muted/30 rounded border-l-2 border-primary/50">
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Ihre Antwort:</p>
-                    <p>{analysis.answer}</p>
-                  </div>
+                  <p className="text-base">{thesis.content}</p>
                   
-                  {analysis.perspectives && (
+                  {thesis.perspectives && thesis.perspectives.length > 0 && (
                     <div>
                       <h4 className="font-medium mb-2 flex items-center gap-2">
                         <Eye className="h-4 w-4" />
                         Perspektiven-Analyse
                       </h4>
                       <div className="space-y-1">
-                        {analysis.perspectives.map((perspective, i) => (
+                        {thesis.perspectives.map((perspective, i) => (
                           <div key={i} className="text-sm p-2 bg-muted/20 rounded">
                             {perspective}
                           </div>
@@ -544,81 +540,73 @@ export default function Weitblickgenerator() {
                       </div>
                     </div>
                   )}
-                  
-                  {analysis.opportunities && analysis.opportunities.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-2 text-green-700">Möglichkeiten</h4>
-                      <div className="space-y-1">
-                        {analysis.opportunities.map((opp, i) => (
-                          <Badge key={i} variant="outline" className="mr-2 mb-1 bg-green-50 border-green-200">
-                            {opp}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {analysis.risks && analysis.risks.length > 0 && (
-                    <div>
-                      <h4 className="font-medium mb-2 text-amber-700 flex items-center gap-1">
-                        <AlertTriangle className="h-4 w-4" />
-                        Riffe & Untiefen
-                      </h4>
-                      <div className="space-y-1">
-                        {analysis.risks.map((risk, i) => (
-                          <Badge key={i} variant="outline" className="mr-2 mb-1 bg-amber-50 border-amber-200">
-                            {risk}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    {thesis.id === currentThesisId && (
+                      <Button
+                        onClick={() => handleThinkForward(thesis)}
+                        disabled={isAnalyzing}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <ArrowRight className="h-4 w-4 mr-1" />
+                        Weiterdenken
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
+
+            {/* Quintessenz Generator */}
+            {currentLevelTheses.length >= 2 && !currentLevelTheses.some(t => t.type === 'quintessence') && (
+              <Card className="border-dashed border-2 border-purple-200 bg-purple-50/50">
+                <CardContent className="text-center py-8">
+                  <Button
+                    onClick={handleGenerateQuintessence}
+                    disabled={isAnalyzing}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    <Lightbulb className="h-4 w-4 mr-2" />
+                    Quintessenz generieren
+                  </Button>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Vereint These und Antithese zu einer höheren Synthese
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* Sidebar - Kompass */}
+          {/* Sidebar - Navigation */}
           <div className="space-y-6">
             <Card className="bg-gradient-to-br from-card to-accent/5 border-accent/20">
               <CardHeader>
-                <CardTitle className="text-lg">Kompass-Status</CardTitle>
+                <CardTitle className="text-lg">Navigation</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {PHASES.map((phase, index) => {
-                    const isCompleted = index < currentPhase;
-                    const isCurrent = index === currentPhase;
-                    const IconComp = phase.icon;
-                    
-                    return (
-                      <div 
-                        key={index}
-                        className={`flex items-center gap-3 p-2 rounded-lg transition-all ${
-                          isCurrent ? 'bg-primary/10 border border-primary/20' :
-                          isCompleted ? 'bg-green-50 border border-green-200' :
-                          'bg-muted/30'
-                        }`}
-                      >
-                        <IconComp className={`h-4 w-4 ${
-                          isCurrent ? 'text-primary' :
-                          isCompleted ? 'text-green-600' :
-                          'text-muted-foreground'
-                        }`} />
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${
-                            isCurrent ? 'text-primary' :
-                            isCompleted ? 'text-green-700' :
-                            'text-muted-foreground'
-                          }`}>
-                            {phase.title}
-                          </p>
-                        </div>
-                        {isCompleted && <div className="w-2 h-2 bg-green-500 rounded-full" />}
-                        {isCurrent && <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />}
+                  {theses.map((thesis) => (
+                    <div 
+                      key={thesis.id}
+                      className={`flex items-center gap-3 p-2 rounded-lg transition-all cursor-pointer ${
+                        thesis.id === currentThesisId ? 'bg-primary/10 border border-primary/20' : 'bg-muted/30 hover:bg-muted/50'
+                      }`}
+                      onClick={() => setCurrentThesisId(thesis.id)}
+                    >
+                      {thesis.type === 'thesis' && <Target className="h-4 w-4 text-green-600" />}
+                      {thesis.type === 'antithesis' && <AlertTriangle className="h-4 w-4 text-red-600" />}
+                      {thesis.type === 'quintessence' && <Lightbulb className="h-4 w-4 text-purple-600" />}
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${
+                          thesis.id === currentThesisId ? 'text-primary' : 'text-foreground'
+                        }`}>
+                          {thesis.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Level {thesis.level}</p>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
